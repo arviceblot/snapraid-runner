@@ -14,6 +14,12 @@ file = snapraid.log
 ; maximum logfile size in KiB, leave empty for infinite
 maxsize = 5000
 
+[notifications]
+; if you want notifications to be activated
+on = true
+; set to false to get full program output via notifications
+short = true
+
 [email]
 ; when to send an email, comma-separated list of [success, error]
 sendon = success,error
@@ -34,6 +40,12 @@ ssl = false
 tls = false
 user =
 password =
+
+[pushover]
+user_token =
+app_token = 
+sendon = success,error
+maxsize = 4096
 
 [scrub]
 ; set to true to run scrub after sync

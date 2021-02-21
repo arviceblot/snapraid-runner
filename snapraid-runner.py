@@ -16,7 +16,7 @@ from io import StringIO
 
 # Global variables
 config = None
-email_log = None
+notification_log = None
 
 
 def tee_log(infile, out_lines, log_level):
@@ -88,16 +88,8 @@ def send_email(success):
     else:
         body = "Error during SnapRAID job:\n\n\n"
 
-    log = email_log.getvalue()
-    maxsize = config['email'].get('maxsize', 500) * 1024
-    if maxsize and len(log) > maxsize:
-        cut_lines = log.count("\n", maxsize // 2, -maxsize // 2)
-        log = (
-            "NOTE: Log was too big for email and was shortened\n\n" +
-            log[:maxsize // 2] +
-            "[...]\n\n\n --- LOG WAS TOO BIG - {} LINES REMOVED --\n\n\n[...]".format(
-                cut_lines) +
-            log[-maxsize // 2:])
+    maxsize = config["email"].get("maxsize", 500) * 1024
+    log = get_log(maxsize)
     body += log
 
     msg = MIMEText(body, "plain", "utf-8")
@@ -123,12 +115,58 @@ def send_email(success):
     server.quit()
 
 
+def send_pushover(success: bool):
+    """Send pushover notification"""
+    from pushover import Client
+
+    if not (len(config["pushover"]["user_token"]) and len(config["pushover"]["app_token"])):
+        logging.error(
+            "Failed to pushover because user or app token is not set")
+        return
+
+    maxsize = config["pushover"].get("maxsize", 4096)
+    log = get_log(maxsize)
+    body = get_success_message(success)
+    body += log
+
+    client = Client(config["pushover"]["user_token"],
+                    api_token=config["pushover"]["app_token"])
+    title = "[SnapRAID] Status Report:" + (" SUCCESS" if success else " ERROR")
+    client.send_message(body, title=title)
+
+
+def get_log(maxsize):
+    log = notification_log.getvalue()
+    if maxsize and len(log) > maxsize:
+        cut_lines = log.count("\n", maxsize // 2, -maxsize // 2)
+        log = (
+            "NOTE: Log was too big and was shortened\n\n"
+            + log[: maxsize // 2]
+            + "[...]\n\n\n --- LOG WAS TOO BIG - {} LINES REMOVED --\n\n\n[...]".format(
+                cut_lines
+            )
+            + log[-maxsize // 2:]
+        )
+    return log
+
+
+def get_success_message(success):
+    if success:
+        return "SnapRAID job completed successfully:\n\n\n"
+    return "Error during SnapRAID job:\n\n\n"
+
+
 def finish(is_success):
     if ("error", "success")[is_success] in config["email"]["sendon"]:
         try:
             send_email(is_success)
         except Exception:
             logging.exception("Failed to send email")
+    if ("error", "success")[is_success] in config["pushover"]["sendon"]:
+        try:
+            send_pushover(is_success)
+        except Exception:
+            logging.exception("Failed to send pushover")
     if is_success:
         logging.info("Run finished successfully")
     else:
@@ -140,7 +178,7 @@ def load_config(args):
     global config
     parser = configparser.RawConfigParser()
     parser.read(args.conf)
-    sections = ["snapraid", "logging", "email", "smtp", "scrub"]
+    sections = ["snapraid", "logging", "email", "smtp", "scrub", "pushover"]
     config = dict((x, defaultdict(lambda: "")) for x in sections)
     for section in parser.sections():
         for (k, v) in parser.items(section):
@@ -160,7 +198,8 @@ def load_config(args):
     config["smtp"]["tls"] = (config["smtp"]["tls"].lower() == "true")
     config["scrub"]["enabled"] = (config["scrub"]["enabled"].lower() == "true")
     config["email"]["short"] = (config["email"]["short"].lower() == "true")
-    config["snapraid"]["touch"] = (config["snapraid"]["touch"].lower() == "true")
+    config["snapraid"]["touch"] = (
+        config["snapraid"]["touch"].lower() == "true")
 
     if args.scrub is not None:
         config["scrub"]["enabled"] = args.scrub
@@ -188,15 +227,15 @@ def setup_logger():
         file_logger.setFormatter(log_format)
         root_logger.addHandler(file_logger)
 
-    if config["email"]["sendon"]:
-        global email_log
-        email_log = StringIO()
-        email_logger = logging.StreamHandler(email_log)
-        email_logger.setFormatter(log_format)
-        if config["email"]["short"]:
-            # Don't send programm stdout in email
-            email_logger.setLevel(logging.INFO)
-        root_logger.addHandler(email_logger)
+    if config["notifications"]["on"]:
+        global notification_log
+        notification_log = StringIO()
+        notification_logger = logging.StreamHandler(notification_log)
+        notification_logger.setFormatter(log_format)
+        if config["notifications"]["short"]:
+            # Don't send program stdout in notification
+            notification_logger.setLevel(logging.INFO)
+        root_logger.addHandler(notification_logger)
 
 
 def main():
