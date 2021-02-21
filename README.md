@@ -1,7 +1,7 @@
 # Snapraid Runner Script
 
 This script runs snapraid and sends its output to the console, a log file and
-via email. All this is configurable.
+via email or pushover. All this is configurable.
 
 It can be run manually, but its main purpose is to be run via cronjob/windows
 scheduler.
@@ -23,7 +23,7 @@ It supports Windows, Linux and macOS and requires at least python3.7.
 * Runs `diff` before `sync` to see how many files were deleted and aborts if
   that number exceeds a set threshold.
 * Can create a size-limited rotated logfile.
-* Can send notification emails after each run or only for failures.
+* Can send notifications by email or pushover after each run or only for failures.
 * Can run `scrub` after `sync`
 
 ## Changelog
