@@ -125,7 +125,7 @@ def send_pushover(success: bool):
         return
 
     maxsize = config["pushover"].get("maxsize", 4096)
-    log = get_log(maxsize)
+    log = get_log(int(maxsize))
     body = get_success_message(success)
     body += log
 
